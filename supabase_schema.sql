@@ -38,7 +38,7 @@ CREATE TABLE public.produtos (
     name TEXT NOT NULL,
     description TEXT NOT NULL,
     full_description TEXT,
-    price DEFAULT_NUMERIC NUMERIC(10,2) NOT NULL DEFAULT 0.00,
+    price NUMERIC(10,2) NOT NULL DEFAULT 0.00,
     promo_price NUMERIC(10,2),
     badge TEXT,
     image_url TEXT NOT NULL,
