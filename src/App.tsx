@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { 
   Search, Flag, ShieldAlert, Sparkles, Star, Flame, CupSoda, Trash2, 
   MapPin, Clock, Phone, Heart, ShoppingBag, ArrowRight, Instagram, Facebook,
-  X, UtensilsCrossed, Award, ThumbsUp, Quote, CheckCircle, HelpCircle
+  X, UtensilsCrossed, Award, ThumbsUp, Quote, CheckCircle, HelpCircle, User, LogIn
 } from "lucide-react";
 import Header from "./components/Header";
 import Footer from "./components/Footer";
@@ -10,13 +10,78 @@ import ProductCard from "./components/ProductCard";
 import ProductModal from "./components/ProductModal";
 import CartDrawer from "./components/CartDrawer";
 import AdminPanel from "./components/AdminPanel";
+import AuthView from "./components/AuthView";
+import CustomerPanel from "./components/CustomerPanel";
 import { Product, Coupon, Order, Settings, OrderItem } from "./types";
 
+// Hook Integrations
+import { useAuth } from "./hooks/useAuth";
+import { useProducts } from "./hooks/useProducts";
+import { useCart } from "./hooks/useCart";
+import { useOrders } from "./hooks/useOrders";
+import { useRealtime } from "./hooks/useRealtime";
+import { useCoupons } from "./hooks/useCoupons";
+import { dashboardService } from "./services/dashboardService";
+
 export default function App() {
-  // Shared States (synchronized with Express Server `/api/*`)
-  const [products, setProducts] = useState<Product[]>([]);
-  const [coupons, setCoupons] = useState<Coupon[]>([]);
-  const [orders, setOrders] = useState<Order[]>([]);
+  // 1. Supabase Auth state
+  const { 
+    profile, 
+    isAdmin, 
+    isCliente, 
+    isAuthenticated, 
+    login: handleSupabaseLogin, 
+    register: handleSupabaseRegister, 
+    logout: handleSupabaseLogout, 
+    updateProfile: handleSupabaseUpdateProfile 
+  } = useAuth();
+
+  // 2. Catalog & Favorites sync
+  const { 
+    products, 
+    favoriteIds, 
+    loading: productsLoading, 
+    toggleFavorite, 
+    addProduct: handleAddProduct, 
+    updateProduct: handleUpdateProduct, 
+    deleteProduct: handleDeleteProduct,
+    submitReview: handleSubmitReview,
+    refreshData: refreshCatalog
+  } = useProducts(profile?.id);
+
+  // 3. Coupon database control
+  const { 
+    coupons, 
+    addCoupon: handleAddCoupon, 
+    updateCoupon: handleUpdateCoupon, 
+    deleteCoupon: handleDeleteCoupon,
+    refreshCoupons
+  } = useCoupons();
+
+  // 4. Cart management (guest or synced user cart)
+  const { 
+    cartItems, 
+    loading: cartLoading, 
+    addToCart, 
+    updateQuantity, 
+    removeFromCart, 
+    clearCart, 
+    subtotal, 
+    discount,
+    refreshCart
+  } = useCart(profile?.id);
+
+  // 5. Orders checkout & history sync
+  const { 
+    orders, 
+    loading: ordersLoading, 
+    createOrder, 
+    updateOrderStatus: handleUpdateOrder, 
+    deleteOrder: handleDeleteOrder,
+    refreshOrders
+  } = useOrders(profile?.id, isAdmin);
+
+  // Store General settings
   const [settings, setSettings] = useState<Settings>({
     whatsappNumber: "5511999999999",
     storeOpen: true,
@@ -24,56 +89,67 @@ export default function App() {
     deliveryFee: 7.0
   });
 
-  const [loading, setLoading] = useState(true);
-
-  // Client Specific States
-  const [cartItems, setCartItems] = useState<OrderItem[]>([]);
-  const [favoriteIds, setFavoriteIds] = useState<string[]>([]);
+  // Client Specific Interface States
   const [showOnlyFavorites, setShowOnlyFavorites] = useState(false);
   const [activeCategory, setActiveCategory] = useState<string>("all");
   const [searchTerm, setSearchTerm] = useState<string>("");
-  const [currentView, setCurrentView] = useState<"home" | "admin">("home");
+  const [currentView, setCurrentView] = useState<"home" | "admin" | "auth">("home");
 
-  // Detailed view states
+  // Selection & Details view states
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [cartDrawerOpen, setCartDrawerOpen] = useState(false);
 
-  // Hydrate Data on spawn and mount
+  // Refresh helper for all datasets
+  const refreshAll = React.useCallback(async () => {
+    await Promise.all([
+      refreshCatalog(),
+      refreshCoupons(),
+      refreshOrders(),
+      refreshCart()
+    ]);
+  }, [refreshCatalog, refreshCoupons, refreshOrders, refreshCart]);
+
+  // Load Store Settings from Database settings
   useEffect(() => {
-    async function loadDatabase() {
+    async function loadSettings() {
       try {
-        setLoading(true);
-        const res = await fetch("/api/db");
-        if (res.ok) {
-          const data = await res.json();
-          setProducts(data.products || []);
-          setCoupons(data.coupons || []);
-          setOrders(data.orders || []);
-          if (data.settings) {
-            setSettings(data.settings);
-          }
-        }
+        const dbSettings = await dashboardService.getShopSettings();
+        setSettings(dbSettings);
       } catch (err) {
-        console.error("Erro carregando banco do rancho:", err);
-      } finally {
-        setLoading(false);
+        console.warn("Failed to load DB settings, using static fallbacks:", err);
       }
     }
-    
-    loadDatabase();
-
-    // Load Local storage cart / favorites
-    const savedFavs = localStorage.getItem("contry_favs");
-    if (savedFavs) {
-      setFavoriteIds(JSON.parse(savedFavs));
-    }
-    const savedCart = localStorage.getItem("contry_cart");
-    if (savedCart) {
-      setCartItems(JSON.parse(savedCart));
-    }
+    loadSettings();
   }, []);
 
-  // Synchronize dynamic swapping inside modal related products
+  // Update Settings from Admin screen
+  const handleUpdateSettings = async (sPayload: Settings) => {
+    try {
+      const updated = await dashboardService.updateShopSettings(sPayload);
+      setSettings(updated);
+      return updated;
+    } catch (err) {
+      console.error("Error saving settings:", err);
+      throw err;
+    }
+  };
+
+  // Sync state modifications in Live Realtime Subscriptions
+  useRealtime({
+    onOrderChange: (payload) => {
+      console.log("Realtime order modifier caught:", payload);
+      refreshOrders();
+    },
+    onNotificationChange: (payload) => {
+      console.log("Realtime notification alert caught:", payload);
+    },
+    onProductChange: (payload) => {
+      console.log("Realtime product catalog change caught:", payload);
+      refreshCatalog();
+    }
+  });
+
+  // Synchronize modal swapping matching recommendation clicks
   useEffect(() => {
     const handleModalSwap = (e: Event) => {
       const p = (e as CustomEvent).detail as Product;
@@ -83,260 +159,58 @@ export default function App() {
     return () => window.removeEventListener("product-swap", handleModalSwap);
   }, []);
 
-  // Helper: Persist client cache
-  const saveCartToCache = (newCart: OrderItem[]) => {
-    setCartItems(newCart);
-    localStorage.setItem("contry_cart", JSON.stringify(newCart));
-  };
-
-  const saveFavsToCache = (newFavs: string[]) => {
-    setFavoriteIds(newFavs);
-    localStorage.setItem("contry_favs", JSON.stringify(newFavs));
-  };
-
   // ==========================================
-  // SERVER SYNCHRONISERS (API CRUDS)
+  // CLIENT ADAPTER INTERFACES
   // ==========================================
 
-  const rehydrateCatalog = async () => {
-    try {
-      const res = await fetch("/api/db");
-      if (res.ok) {
-        const data = await res.json();
-        setProducts(data.products || []);
-        setCoupons(data.coupons || []);
-        setOrders(data.orders || []);
-        if (data.settings) setSettings(data.settings);
-      }
-    } catch (err) {
-      console.warn("Erro ao reidratar os dados:", err);
-    }
-  };
-
-  // 1. ADD / EDIT PRODUCT
-  const handleAddProduct = async (pPayload: any) => {
-    const res = await fetch("/api/products", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(pPayload)
-    });
-    await rehydrateCatalog();
-    return res.json();
-  };
-
-  const handleUpdateProduct = async (pPayload: Product) => {
-    const res = await fetch(`/api/products/${pPayload.id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(pPayload)
-    });
-    await rehydrateCatalog();
-    return res.json();
-  };
-
-  const handleDeleteProduct = async (id: string) => {
-    const res = await fetch(`/api/products/${id}`, { method: "DELETE" });
-    await rehydrateCatalog();
-    return res.json();
-  };
-
-  // 2. COUPONS
-  const handleAddCoupon = async (cPayload: any) => {
-    const res = await fetch("/api/coupons", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(cPayload)
-    });
-    await rehydrateCatalog();
-    return res.json();
-  };
-
-  const handleUpdateCoupon = async (cPayload: Coupon) => {
-    const res = await fetch(`/api/coupons/${cPayload.id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(cPayload)
-    });
-    await rehydrateCatalog();
-    return res.json();
-  };
-
-  const handleDeleteCoupon = async (id: string) => {
-    const res = await fetch(`/api/coupons/${id}`, { method: "DELETE" });
-    await rehydrateCatalog();
-    return res.json();
-  };
-
-  // 3. ORDERS
-  const handleUpdateOrder = async (id: string, status: Order["status"]) => {
-    const res = await fetch(`/api/orders/${id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status })
-    });
-    await rehydrateCatalog();
-    return res.json();
-  };
-
-  const handleDeleteOrder = async (id: string) => {
-    const res = await fetch(`/api/orders/${id}`, { method: "DELETE" });
-    await rehydrateCatalog();
-    return res.json();
-  };
-
-  const handleOrderCompleted = async (orderPayload: any, appliedCouponCode: string | null) => {
-    const res = await fetch("/api/orders", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(orderPayload)
-    });
-    
-    const parsed = await res.json();
-
-    // Clear local cart once checkout is finalized successfully
-    saveCartToCache([]);
-    setCartDrawerOpen(false);
-    
-    await rehydrateCatalog();
-    return parsed;
-  };
-
-  // 4. SUBMIT EVALUATION
-  const handleSubmitReview = async (productId: string, author: string, rating: number, comment: string) => {
-    await fetch(`/api/products/${productId}/reviews`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ author, rating, comment })
-    });
-    
-    // Update active detailed view with fresh reviews list immediately
-    await rehydrateCatalog();
-    setProducts((prev) => {
-      const idx = prev.findIndex(p => p.id === productId);
-      if (idx !== -1 && selectedProduct?.id === productId) {
-        setSelectedProduct(prev[idx]);
-      }
-      return prev;
-    });
-  };
-
-  // 5. UPDATE STORE SETTINGS
-  const handleUpdateSettings = async (sPayload: Settings) => {
-    const res = await fetch("/api/settings", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(sPayload)
-    });
-    await rehydrateCatalog();
-    return res.json();
-  };
-
-
-  // ==========================================
-  // CLIENT CORE UX LOGIC
-  // ==========================================
-
-  // Toggle Favorite Overlay
   const handleToggleFavorite = (e: React.MouseEvent, product: Product) => {
     e.stopPropagation();
-    const idx = favoriteIds.indexOf(product.id);
-    let updated: string[];
-    if (idx === -1) {
-      updated = [...favoriteIds, product.id];
-    } else {
-      updated = favoriteIds.filter(id => id !== product.id);
-    }
-    saveFavsToCache(updated);
+    toggleFavorite(product.id);
   };
 
-  // Add Item callback from ProductCard with quantity=1
   const handleAddToCartSimple = (e: React.MouseEvent, product: Product) => {
     e.stopPropagation();
-    
     if (!settings.storeOpen) {
       alert("🤠 Saloon Fechado! Não estamos recebendo pedidos no momento.");
       return;
     }
-
-    const price = product.promoPrice !== null ? product.promoPrice : product.price;
-    const existingIdx = cartItems.findIndex(item => item.productId === product.id);
-    let updatedCart = [...cartItems];
-
-    if (existingIdx !== -1) {
-      updatedCart[existingIdx].quantity += 1;
-    } else {
-      updatedCart.push({
-        productId: product.id,
-        name: product.name,
-        price,
-        quantity: 1,
-        obs: "",
-        imageUrl: product.imageUrl
-      });
-    }
-
-    saveCartToCache(updatedCart);
+    addToCart(product, 1);
     setCartDrawerOpen(true);
   };
 
-  // Add Item callback from ProductModal with custom specifications
   const handleAddToCartSophisticated = (product: Product, qty: number, obs: string) => {
     if (!settings.storeOpen) {
       alert("🤠 Saloon Fechado! Não estamos recebendo pedidos no momento.");
       return;
     }
-
-    const price = product.promoPrice !== null ? product.promoPrice : product.price;
-    const existingIdx = cartItems.findIndex(item => item.productId === product.id && item.obs === obs);
-    let updatedCart = [...cartItems];
-
-    if (existingIdx !== -1) {
-      updatedCart[existingIdx].quantity += qty;
-    } else {
-      updatedCart.push({
-        productId: product.id,
-        name: product.name,
-        price,
-        quantity: qty,
-        obs,
-        imageUrl: product.imageUrl
-      });
-    }
-
-    saveCartToCache(updatedCart);
+    addToCart(product, qty, obs);
     setCartDrawerOpen(true);
   };
 
-  // Adjust item quantity inside Carrinho Drawer
-  const handleUpdateCartQuantity = (productId: string, val: number) => {
-    if (val <= 0) {
-      handleRemoveCartItem(productId);
-      return;
-    }
-    const updated = cartItems.map(item => 
-      item.productId === productId ? { ...item, quantity: val } : item
-    );
-    saveCartToCache(updated);
+  const handleOrderCompleted = async (orderPayload: any, appliedCouponCode: string | null) => {
+    // Adapter payload to compile Order structure cleanly
+    const orderData: Omit<Order, "id" | "timestamp"> = {
+      customerName: orderPayload.customerName,
+      customerPhone: orderPayload.customerPhone,
+      customerAddress: orderPayload.customerAddress,
+      paymentMethod: orderPayload.paymentMethod,
+      items: orderPayload.items,
+      subtotal: orderPayload.subtotal,
+      discount: orderPayload.discount,
+      total: orderPayload.total,
+      status: "pendente"
+    };
+
+    const response = await createOrder(orderData);
+    await clearCart();
+    setCartDrawerOpen(false);
+    return response;
   };
 
-  // Delete Item from Carrinho Drawer
-  const handleRemoveCartItem = (productId: string) => {
-    const filtered = cartItems.filter(item => item.productId !== productId);
-    saveCartToCache(filtered);
-  };
-
-  // ==========================================
-  // FILTERS & SEARCH
-  // ==========================================
-
+  // Filters calculation
   const filteredProducts = products.filter((p) => {
-    // 1. Status Filter: Only active/visible items on menu
     if (!p.isActive) return false;
-
-    // 2. Category selection Filter
     if (activeCategory !== "all" && p.category !== activeCategory) return false;
-
-    // 3. Search Bar Filter (Matching Name/Ingredients/Description)
     if (searchTerm.trim() !== "") {
       const query = searchTerm.toLowerCase();
       const matchName = p.name.toLowerCase().includes(query);
@@ -344,16 +218,12 @@ export default function App() {
       const matchIngs = p.ingredients ? p.ingredients.some(i => i.toLowerCase().includes(query)) : false;
       if (!matchName && !matchDesc && !matchIngs) return false;
     }
-
-    // 4. Client Favorites Filter Toggle
     if (showOnlyFavorites) {
       return favoriteIds.includes(p.id);
     }
-
     return true;
   });
 
-  // Split Category helper
   const categories = [
     { id: "all", label: "Tudo", icon: <UtensilsCrossed size={14} /> },
     { id: "burgers", label: "Burgers Grelhados", icon: <Flame size={14} /> },
@@ -362,9 +232,6 @@ export default function App() {
     { id: "drinks", label: "Cold Drinks", icon: <CupSoda size={14} /> },
     { id: "desserts", label: "Doces & Sobremesas", icon: <ThumbsUp size={14} /> }
   ];
-
-  const promosInGrid = products.filter(p => p.isActive && p.isPromo).slice(0, 3);
-  const featuredInGrid = products.filter(p => p.isActive && p.isFeatured).slice(0, 3);
 
   return (
     <div className="flex flex-col min-h-screen bg-cowboy-cream text-wood-dark font-sans relative antialiased">
@@ -379,37 +246,96 @@ export default function App() {
           setShowOnlyFavorites(!showOnlyFavorites);
           setCurrentView("home");
         }}
-        currentView={currentView}
+        currentView={currentView === "auth" ? "home" : currentView}
         onSetView={(view) => {
-          setCurrentView(view);
+          if (view === "admin") {
+            if (!isAuthenticated) {
+              setCurrentView("auth");
+            } else {
+              setCurrentView("admin");
+            }
+          } else {
+            setCurrentView("home");
+          }
           setShowOnlyFavorites(false);
         }}
         searchTerm={searchTerm}
         onSearchChange={setSearchTerm}
       />
 
-      {/* Main Container */}
-      {currentView === "admin" ? (
+      {/* Main Container routes dispatcher */}
+      {currentView === "auth" ? (
+        <AuthView
+          onLogin={async (email, pass) => {
+            const data = await handleSupabaseLogin(email, pass);
+            setCurrentView("admin");
+            return data;
+          }}
+          onRegister={async (email, pass, name) => {
+            return await handleSupabaseRegister(email, pass, name);
+          }}
+          onBack={() => setCurrentView("home")}
+        />
+      ) : currentView === "admin" && isAuthenticated && isCliente ? (
+        // For authenticated customers, show the Custom panel with editing controls and order tracking
+        <CustomerPanel
+          profile={profile!}
+          orders={orders}
+          favoriteIds={favoriteIds}
+          onLogout={async () => {
+            await handleSupabaseLogout();
+            setCurrentView("home");
+          }}
+          onUpdateProfile={async (updates) => {
+            return await handleSupabaseUpdateProfile(updates);
+          }}
+        />
+      ) : currentView === "admin" && isAuthenticated && isAdmin ? (
+        // For logged-in Admin, render the comprehensive analytical management console
         <AdminPanel
           products={products}
           coupons={coupons}
           orders={orders}
           settings={settings}
-          onAddProduct={handleAddProduct}
-          onUpdateProduct={handleUpdateProduct}
-          onDeleteProduct={handleDeleteProduct}
-          onAddCoupon={handleAddCoupon}
-          onUpdateCoupon={handleUpdateCoupon}
-          onDeleteCoupon={handleDeleteCoupon}
-          onUpdateOrder={handleUpdateOrder}
-          onDeleteOrder={handleDeleteOrder}
+          onAddProduct={async (p) => {
+            await handleAddProduct(p);
+            return { success: true };
+          }}
+          onUpdateProduct={async (p) => {
+            await handleUpdateProduct(p);
+            return { success: true };
+          }}
+          onDeleteProduct={async (id) => {
+            await handleDeleteProduct(id);
+            return { success: true };
+          }}
+          onAddCoupon={async (c) => {
+            await handleAddCoupon(c);
+            return { success: true };
+          }}
+          onUpdateCoupon={async (c) => {
+            await handleUpdateCoupon(c.id, c);
+            return { success: true };
+          }}
+          onDeleteCoupon={async (id) => {
+            await handleDeleteCoupon(id);
+            return { success: true };
+          }}
+          onUpdateOrder={async (id, status) => {
+            await handleUpdateOrder(id, status);
+            return { success: true };
+          }}
+          onDeleteOrder={async (id) => {
+            await handleDeleteOrder(id);
+            return { success: true };
+          }}
           onUpdateSettings={handleUpdateSettings}
         />
       ) : (
         <main className="flex-1 pb-16">
           <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 sm:pt-10 space-y-8 animate-fadeIn">
             
-            {/* Header of the Menu with Category & Modern Integrated Search */}
+            {/* Header of the Menu with Category & Search */}
             <div className="space-y-6">
               
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-natural-border pb-4">
@@ -514,10 +440,6 @@ export default function App() {
       {/* Primary Footer */}
       <Footer />
 
-      {/* ==========================================
-          MODALS & OVERLAYS ORCHESTRATION
-          ========================================== */}
-      
       {/* Product Detail Modal */}
       {selectedProduct && (
         <ProductModal
@@ -525,7 +447,12 @@ export default function App() {
           relatedProducts={products.filter(p => p.isActive && p.category === selectedProduct.category && p.id !== selectedProduct.id).slice(0, 2)}
           onClose={() => setSelectedProduct(null)}
           onAddToCart={handleAddToCartSophisticated}
-          onSubmitReview={handleSubmitReview}
+          onSubmitReview={async (productId, author, rating, comment) => {
+            await handleSubmitReview(productId, author, rating, comment);
+            // Sync selected item in-state reviews array
+            const freshList = products.find(p => p.id === productId);
+            if (freshList) setSelectedProduct(freshList);
+          }}
           whatsappNumber={settings.whatsappNumber}
         />
       )}
@@ -535,8 +462,8 @@ export default function App() {
         isOpen={cartDrawerOpen}
         onClose={() => setCartDrawerOpen(false)}
         cartItems={cartItems}
-        onUpdateQuantity={handleUpdateCartQuantity}
-        onRemoveItem={handleRemoveCartItem}
+        onUpdateQuantity={updateQuantity}
+        onRemoveItem={removeFromCart}
         coupons={coupons}
         settings={settings}
         onOrderCompleted={handleOrderCompleted}
