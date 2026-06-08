@@ -37,7 +37,7 @@ export default function AdminPanel({
   onUpdateSettings
 }: AdminPanelProps) {
   // Authentication states
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(true);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [authError, setAuthError] = useState("");
@@ -279,7 +279,7 @@ export default function AdminPanel({
               ⭐ REINADO DE PRODUTOS CONTROLLER
             </h1>
             <p className="text-stone-400 text-xs font-mono uppercase tracking-widest">
-              Controle Geral do Velho Oeste — Contry Food Burger
+              Controle Geral do Velho Oeste — Country Food Burger
             </p>
           </div>
 

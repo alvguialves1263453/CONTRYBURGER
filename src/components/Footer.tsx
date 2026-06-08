@@ -14,7 +14,7 @@ export default function Footer() {
           {/* Column 1: Store Bio */}
           <div className="space-y-4">
             <div className="flex items-center space-x-2">
-              <span className="font-display text-2xl font-bold text-natural-cream">CONTRY <span className="text-natural-red">FOOD</span></span>
+              <span className="font-display text-2xl font-bold text-natural-cream">COUNTRY <span className="text-natural-red">FOOD</span></span>
               <span className="text-xl text-natural-red">★</span>
             </div>
             
@@ -75,7 +75,7 @@ export default function Footer() {
               </li>
               <li className="flex items-center space-x-3">
                 <Mail size={18} className="text-natural-red shrink-0" />
-                <span>contato@contryfoodburger.com</span>
+                <span>contato@countryfoodburger.com</span>
               </li>
             </ul>
           </div>
@@ -96,7 +96,7 @@ export default function Footer() {
                 allowFullScreen={false}
                 loading="lazy"
                 referrerPolicy="no-referrer-when-downgrade"
-                title="Localização Contry Food"
+                title="Localização Country Food"
                 className="opacity-90 hover:opacity-100 transition-opacity duration-300"
               />
             </div>
@@ -109,7 +109,7 @@ export default function Footer() {
 
         {/* Small copyright footnotes */}
         <div className="mt-12 pt-8 border-t border-natural-border text-center text-xs text-natural-cream/60 flex flex-col sm:flex-row items-center justify-between gap-4 font-mono">
-          <p>© {new Date().getFullYear()} Contry Food Hamburgueria LTDA. Todos os direitos reservados.</p>
+          <p>© {new Date().getFullYear()} Country Food Hamburgueria LTDA. Todos os direitos reservados.</p>
           <p>
             Feito com <span className="text-natural-red font-bold">❤</span> para os amantes de Burgers Rústicos.
           </p>

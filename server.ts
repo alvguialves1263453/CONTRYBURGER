@@ -302,7 +302,7 @@ async function startServer() {
   }
 
   app.listen(PORT, "0.0.0.0", () => {
-    console.log(`[Contry Food Server] Running at http://localhost:${PORT}`);
+    console.log(`[Country Food Server] Running at http://localhost:${PORT}`);
   });
 }
 

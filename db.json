@@ -60,7 +60,7 @@
       "ingredients": [
         "Pão Australiano caramelizado",
         "180g Hambúrguer de Costela Angus",
-        "Creme de queue cheddar real",
+        "Creme de queijo cheddar real",
         "Anéis de cebola gigantes empanados",
         "Bacon fatiado grosso",
         "Maionese defumada chimichurri"
@@ -221,7 +221,7 @@
         "Alecrim colhido fresco",
         "Páprica defumada espanhola"
       ],
-      "fullDescription": "Crocantes por fora, macias por dentro, com a verdadeira assinatura country da Contry Food. Nossas batatas rústicas levam felições generosas de ervas colhidas na horta e alho tostado na manteiga para criar um aroma irresistível que desperta a fome de qualquer viajante.",
+      "fullDescription": "Crocantes por fora, macias por dentro, com a verdadeira assinatura country da Country Food. Nossas batatas rústicas levam felições generosas de ervas colhidas na horta e alho tostado na manteiga para criar um aroma irresistível que desperta a fome de qualquer viajante.",
       "estimatedTime": "10-12 min",
       "isFeatured": false,
       "isPromo": false,
@@ -364,7 +364,7 @@
   "coupons": [
     {
       "id": "cp1",
-      "code": "CONTRY10",
+      "code": "COUNTRY10",
       "type": "percent",
       "value": 10,
       "expiryDate": "2027-12-31",

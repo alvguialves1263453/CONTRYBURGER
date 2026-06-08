@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { supabase } from "../supabaseClient";
 import { authService, UserProfile } from "../services/authService";
 
 export function useAuth() {
@@ -14,10 +13,9 @@ export function useAuth() {
     async function loadSession() {
       try {
         setLoading(true);
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session?.user && mounted) {
-          const uProfile = await authService.getProfile(session.user.id);
-          setProfile(uProfile);
+        const currentProfile = await authService.getCurrentSession();
+        if (currentProfile && mounted) {
+          setProfile(currentProfile);
         } else if (mounted) {
           setProfile(null);
         }
@@ -30,29 +28,24 @@ export function useAuth() {
 
     loadSession();
 
-    // Listen to changes in Auth state (login, logout, token refresh...)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (!mounted) return;
-        if (session?.user) {
-          const uProfile = await authService.getProfile(session.user.id);
-          setProfile(uProfile);
-        } else {
-          setProfile(null);
-        }
-        setLoading(false);
+    // Sync session state periodically so any secondary logins/logouts reflect instantly
+    const interval = setInterval(async () => {
+      const current = await authService.getCurrentSession();
+      if (mounted) {
+        setProfile(current);
       }
-    );
+    }, 1500);
 
     return () => {
       mounted = false;
-      subscription.unsubscribe();
+      clearInterval(interval);
     };
   }, []);
 
   const login = async (email: string, pass: string) => {
     setError(null);
     setLoading(true);
+
     try {
       const data = await authService.signIn(email, pass);
       if (data?.user) {
@@ -61,7 +54,7 @@ export function useAuth() {
       }
       return data;
     } catch (err: any) {
-      setError(err.message || "Email ou senha incorretos.");
+      setError(err.message || "Email ou palavra-passe incorretos.");
       setLoading(false);
       throw err;
     }
@@ -70,6 +63,7 @@ export function useAuth() {
   const register = async (email: string, pass: string, fullName: string) => {
     setError(null);
     setLoading(true);
+
     try {
       const data = await authService.signUp(email, pass, fullName);
       return data;
@@ -83,6 +77,7 @@ export function useAuth() {
   const logout = async () => {
     setError(null);
     setLoading(true);
+
     try {
       await authService.signOut();
       setProfile(null);
@@ -96,9 +91,10 @@ export function useAuth() {
   const updateProfile = async (updates: Partial<UserProfile>) => {
     if (!profile) return;
     setLoading(true);
+
     try {
       const data = await authService.updateProfile(profile.id, updates);
-      setProfile((prev) => prev ? { ...prev, ...updates } : null);
+      setProfile((prev) => (prev ? { ...prev, ...updates } : null));
       return data;
     } catch (err: any) {
       setError(err.message || "Erro ao atualizar perfil.");

@@ -212,7 +212,7 @@ BEGIN
     NEW.email,
     COALESCE(NEW.raw_user_meta_data->>'full_name', NEW.raw_user_meta_data->>'name', 'Ginete do Rancho'),
     CASE 
-      WHEN NEW.email = 'admin@contryfood.com' THEN 'admin'
+      WHEN NEW.email = 'admin@countryfood.com' THEN 'admin'
       ELSE 'cliente'
     END
   );

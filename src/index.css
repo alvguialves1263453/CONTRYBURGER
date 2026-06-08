@@ -6,26 +6,27 @@
   --font-display: "Playfair Display", "Cinzel", Georgia, serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 
-  /* Natural Tones Core Palette - Warm Golden Amber & Fire Orange Override */
-  --color-natural-dark: #120904;        /* Rich dark roast coffee charcoal */
-  --color-natural-panel: #1e1107;       /* Warm toasted chestnut wood panel */
-  --color-natural-border: #4a2910;      /* Toasted hazelnut accent border */
-  --color-natural-cream: #fff9f0;       /* Fine buttery vanilla-cream text */
-  --color-natural-red: #f97316;         /* Searing Orange primary button/badges */
-  --color-natural-red-hover: #ea580c;   /* Sizzling Dark Orange hover interactions */
-  --color-natural-bright-red: #f59e0b;  /* Intense Amber Sun Yellow for ratings/promos */
+  /* Country Minimalista Premium Core Palette */
+  --color-natural-dark: #1A120B;        /* Fundo: #1A120B */
+  --color-natural-panel: #24170F;       /* Cards: #24170F */
+  --color-natural-border: rgba(255,255,255,0.08); /* Bordas: rgba(255,255,255,0.08) */
+  --color-natural-cream: #F8F5F0;       /* Texto principal: #F8F5F0 */
+  --color-[#A8A29E]: #A8A29E;           /* Map stone-400 equivalent utility */
+  --color-natural-red: #D97706;         /* Destaque: #D97706 */
+  --color-natural-red-hover: #B45309;   /* Destaque hover: #B45309 */
+  --color-natural-bright-red: #F59E0B;  /* Secondary yellow/gold highlight */
 
   /* Retro & Cowboy Backwards Compatibility Palette Map -> Vibrant Warm Yellows/Oranges */
-  --color-wood-dark: #fff3db;           /* Bright, sun-drenched butter-honey yellow section bg */
-  --color-wood-medium: #1e1107;         /* Deep Roasted Mahogany/Caramel */
-  --color-wood-light: #523117;          /* Rich earthy copper accent lines */
-  --color-cowboy-gold: #f59e0b;         /* Glowing Amber Sun Yellow */
-  --color-cowboy-red: #f97316;          /* Spicy Tangerine Orange */
-  --color-cowboy-red-hover: #ea580c;    /* Deep Crimson Sunset Orange */
-  --color-cowboy-cream: #120904;        /* Rich dark roast page base */
-  --color-cowboy-beige: #7a431d;        /* Cozy toasted chestnut/amber brown for text contrast */
-  --color-cowboy-charcoal: #0b0502;     /* Extra deep burnished cocoa shadows */
-  --color-neon-amber: #f97316;          /* Radiant Flaring Neon Orange */
+  --color-wood-dark: #F8F5F0;           /* Soft light cream */
+  --color-wood-medium: #24170F;         /* Deep Roasted Mahogany/Caramel */
+  --color-wood-light: rgba(255,255,255,0.08);
+  --color-cowboy-gold: #D97706;         /* Glowing Amber Destaque */
+  --color-cowboy-red: #D97706;          /* Spicy Tangerine Orange */
+  --color-cowboy-red-hover: #B45309;    /* Deep Crimson Sunset Orange */
+  --color-cowboy-cream: #1A120B;        /* Rich dark roast page base #1A120B */
+  --color-cowboy-beige: #A8A29E;        /* Text secondary */
+  --color-cowboy-charcoal: #150D07;     /* Extra deep burnished cocoa shadows */
+  --color-neon-amber: #D97706;          /* Radiant Flaring Neon Orange */
 }
 
 /* Custom Base Utilities */
@@ -89,3 +90,31 @@
 .pulse-neon {
   animation: pulse-neon 2s infinite;
 }
+
+/* Hide scrollbar for clean horizontal list scrolling on mobile devices */
+.scrollbar-none::-webkit-scrollbar {
+  display: none !important;
+}
+.scrollbar-none {
+  -ms-overflow-style: none !important;  /* IE and Edge */
+  scrollbar-width: none !important;  /* Firefox */
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+

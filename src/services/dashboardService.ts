@@ -1,4 +1,3 @@
-import { supabase } from "../supabaseClient";
 import { Settings } from "../types";
 
 export interface DashboardMetrics {
@@ -17,106 +16,102 @@ export interface WeeklyRevenuePoint {
 
 export const dashboardService = {
   /**
-   * Fetch aggregate KPI cards using public.vw_dashboard_stats
+   * Fetch aggregate KPI cards from local database values
    */
   async getMetrics(): Promise<DashboardMetrics> {
-    const { data, error } = await supabase
-      .from("vw_dashboard_stats")
-      .select("*")
-      .single();
-
-    if (error) {
-      console.error("Error reading vw_dashboard_stats view:", error);
+    try {
+      const response = await fetch("/api/orders");
+      if (!response.ok) throw new Error("Failed to fetch orders for metrics");
+      const orders: any[] = await response.json();
+      
+      const completed = orders.filter((o) => o.status === "entregue");
+      const totalRevenue = completed.reduce((sum, o) => sum + Number(o.total || 0), 0);
+      const totalOrders = orders.length;
+      const completedOrders = completed.length;
+      const pendingOrders = orders.filter((o) => ["pendente", "confirmado", "em_preparo", "enviado"].includes(o.status)).length;
+      const averageTicket = completedOrders > 0 ? (totalRevenue / completedOrders) : 0;
+      
       return {
-        totalRevenue: 0,
-        totalOrders: 0,
-        completedOrders: 0,
-        pendingOrders: 0,
-        averageTicket: 0
+        totalRevenue,
+        totalOrders,
+        completedOrders,
+        pendingOrders,
+        averageTicket
       };
+    } catch (err) {
+      console.error("Local metrics computation error:", err);
+      return { totalRevenue: 0, totalOrders: 0, completedOrders: 0, pendingOrders: 0, averageTicket: 0 };
     }
-
-    return {
-      totalRevenue: Number(data.total_revenue || 0),
-      totalOrders: Number(data.total_orders || 0),
-      completedOrders: Number(data.completed_orders || 0),
-      pendingOrders: Number(data.pending_orders || 0),
-      averageTicket: Number(data.average_ticket || 0)
-    };
   },
 
   /**
    * Read past week's daily totals for the custom SVG bar chart report
    */
   async getWeeklyRevenue(): Promise<WeeklyRevenuePoint[]> {
-    const { data, error } = await supabase
-      .from("vw_revenue_weekly")
-      .select("*");
-
-    if (error) {
-      console.error("Error reading vw_revenue_weekly view:", error);
+    try {
+      const response = await fetch("/api/orders");
+      if (!response.ok) throw new Error("Failed to fetch orders for weekly revenue");
+      const orders: any[] = await response.json();
+      
+      const weekdays = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+      const group: { [key: string]: { total: number; count: number } } = {};
+      
+      weekdays.forEach((day) => {
+        group[day] = { total: 0, count: 0 };
+      });
+      
+      orders.forEach((o) => {
+        if (o.status !== "cancelado") {
+          const date = new Date(o.timestamp);
+          const dayLabel = weekdays[date.getDay()];
+          if (group[dayLabel]) {
+            group[dayLabel].total += Number(o.total || 0);
+            group[dayLabel].count += 1;
+          }
+        }
+      });
+      
+      return weekdays.map((day) => ({
+        dayLabel: day,
+        totalDay: group[day].total,
+        countDay: group[day].count
+      }));
+    } catch (err) {
+      console.error("Local weekly revenue computation error:", err);
       return [];
     }
-
-    return (data || []).map((p): WeeklyRevenuePoint => ({
-      dayLabel: p.day_label,
-      totalDay: Number(p.total_day || 0),
-      countDay: Number(p.count_day || 0)
-    }));
   },
 
   /**
-   * Safe fetch resturant contacts, fees and status lights
+   * Safe fetch restaurant contacts, fees and status lights
    */
   async getShopSettings(): Promise<Settings> {
-    const { data, error } = await supabase
-      .from("configuracoes")
-      .select("*")
-      .eq("key", "store_general")
-      .single();
-
-    const fallback: Settings = {
-      whatsappNumber: "5511999999999",
-      storeOpen: true,
-      estimatedDeliveryTime: "30-45 min",
-      deliveryFee: 7.00
-    };
-
-    if (error || !data) {
-      return fallback;
+    try {
+      const response = await fetch("/api/settings");
+      if (!response.ok) throw new Error("Failed to fetch settings");
+      return await response.json();
+    } catch (err) {
+      console.error("Local settings fetch error:", err);
+      return {
+        whatsappNumber: "5511999999999",
+        storeOpen: true,
+        estimatedDeliveryTime: "30-45 min",
+        deliveryFee: 7.00
+      };
     }
-
-    const val = data.value;
-    return {
-      whatsappNumber: val?.whatsappNumber || fallback.whatsappNumber,
-      storeOpen: val?.storeOpen !== undefined ? val.storeOpen : fallback.storeOpen,
-      estimatedDeliveryTime: val?.estimatedDeliveryTime || fallback.estimatedDeliveryTime,
-      deliveryFee: val?.deliveryFee !== undefined ? Number(val.deliveryFee) : fallback.deliveryFee
-    };
   },
 
   /**
-   * Update restaurant configs inside Json key-pair records
+   * Update restaurant configs
    */
   async updateShopSettings(s: Settings): Promise<Settings> {
-    const { data, error } = await supabase
-      .from("configuracoes")
-      .upsert({
-        key: "store_general",
-        value: {
-          whatsappNumber: s.whatsappNumber,
-          storeOpen: s.storeOpen,
-          estimatedDeliveryTime: s.estimatedDeliveryTime,
-          deliveryFee: s.deliveryFee
-        },
-        description: "Informações fundamentais e contatos do rancho"
-      }, {
-        onConflict: "key"
-      })
-      .select()
-      .single();
-
-    if (error) throw error;
-    return s;
+    const response = await fetch("/api/settings", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(s),
+    });
+    if (!response.ok) throw new Error("Failed to update settings");
+    const res = await response.json();
+    return res.settings;
   }
 };
